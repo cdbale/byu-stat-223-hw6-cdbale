@@ -1,0 +1,141 @@
+---
+title: "act"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load libraries.
+```{r}
+library(tidyverse)
+library(infer)
+```
+
+***
+
+You are trying to decide between two ACT prep classes. Class 1 begins with a general overview followed
+by an extensive number of practice exams. Class 2 covers each topic in depth with practice questions 
+arranged by topic. Sample data for each class is available in the file act.txt in your repository.  Based on a permutation test with
+10,000 replications, does Class 1 increase ACT scores on average? Answer the same question for Class
+2? Write a script named act.R or act.Rmd to address these questions. Underneath your code, write a 
+conclusion as to which class (or, neither class) you would recommend. Justify your answers.
+
+Read in data.
+```{r}
+act_data <- read.table('act.txt', header = TRUE)
+```
+
+Calculate difference in means for each class.
+```{r}
+(class_stats <- act_data %>%
+   group_by(class) %>%
+   summarize(avg_pre = mean(pre), 
+             avg_post = mean(post),
+             difference = avg_post - avg_pre))
+```
+
+Store true differences.
+```{r}
+c1_diff <- class_stats %>%
+  filter(class == 'class1') %>%
+  select(difference) %>%
+  pull()
+
+c2_diff <- class_stats %>%
+  filter(class == 'class2') %>%
+  select(difference) %>%
+  pull()
+```
+
+Gather the 'pre' and 'post' columns in the data to make it tidy.
+```{r}
+act_data <- act_data %>%
+  gather(key = score_period, value = score, -class)
+```
+
+Our null hypothesis will be that there is no difference in mean score before and after attending
+each class. We can impose the null hypothesis by randomizing the post scores for each class and 
+calculating the difference in means between pre and post scores. This will give us the distribution
+of differences in means under the null hypothesis, which we can then compare our actual difference
+in means to.
+
+## Class 1
+
+Create 'c1_data' by filtering for the obervations from the first class, and generating 10000 
+replications of the original data. Then, create a new variable 'perm_score' by randomizing the 
+scores. Group by each replication and the pre and post periods, then calculate the average pre and 
+post class scores for each replication. Then calculate the difference between those average scores.
+```{r}
+c1_data <- act_data %>%
+  filter(class == 'class1') %>%
+  rep_sample_n(size = nrow(.),
+               reps = 10000) %>%
+  mutate(perm_score = sample(score)) %>%
+  group_by(replicate, score_period) %>%
+  summarize(avg_score = mean(perm_score)) %>%
+  summarize(score_diff = diff(avg_score))
+```
+
+Graph the distribution of the difference in mean scores before and after the first class. Include
+a verticle line showing the actual observed difference in mean score.
+```{r}
+c1_data %>%
+  ggplot(aes(x = score_diff)) +
+  geom_density() +
+  geom_vline(xintercept = c1_diff)
+```
+
+Calculate the p-value by subtracting from 1 (since we're looking at the right tail of the 
+distribution) the proportion of mean differences under the null that are less than our observed
+difference.
+```{r}
+c1_data %>%
+  summarize(p_value = 1 - sum(score_diff < c1_diff) / n())
+```
+
+We do not reject the null hypothesis that there is no difference in mean score before and after
+taking the first class.
+
+## Class 2
+
+Create 'c2_data' by filtering for the obervations from the first class, and generating 10000 
+replications of the original data. Then, create a new variable 'perm_score' by randomizing the 
+scores. Group by each replication and the pre and post periods, then calculate the average pre and 
+post class scores for each replication. Then calculate the difference between those average scores.
+```{r}
+c2_data <- act_data %>%
+  filter(class == 'class2') %>%
+  rep_sample_n(size = nrow(.),
+               reps = 10000) %>%
+  mutate(perm_score = sample(score)) %>%
+  group_by(replicate, score_period) %>%
+  summarize(avg_score = mean(perm_score)) %>%
+  summarize(score_diff = diff(avg_score))
+```
+
+Graph the distribution of the difference in mean scores before and after the first class. Include
+a verticle line showing the actual observed difference in mean score.
+```{r}
+c2_data %>%
+  ggplot(aes(x = score_diff)) +
+  geom_density() +
+  geom_vline(xintercept = c2_diff)
+```
+
+Calculate the p-value by subtracting from 1 (since we're looking at the right tail of the 
+distribution) the proportion of mean differences under the null that are less than our observed
+difference.
+```{r}
+c2_data %>%
+  summarize(p_value = 1 - sum(score_diff < c2_diff) / n())
+```
+
+We do not reject the null hypothesis that there is no difference in mean score before and after
+taking the second class.
+
+## Conclusion
+
+Overall, I wouldn't recommend attending either class. The increase in mean score for both classes
+is not statistically significant, so I would recommend spending your money on other study methods.
