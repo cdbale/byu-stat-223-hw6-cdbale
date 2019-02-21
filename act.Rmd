@@ -10,24 +10,29 @@ knitr::opts_chunk$set(echo = TRUE)
 Load libraries.
 ```{r}
 library(tidyverse)
-library(infer)
 ```
 
 ***
 
-You are trying to decide between two ACT prep classes. Class 1 begins with a general overview followed
-by an extensive number of practice exams. Class 2 covers each topic in depth with practice questions 
-arranged by topic. Sample data for each class is available in the file act.txt in your repository.  Based on a permutation test with
-10,000 replications, does Class 1 increase ACT scores on average? Answer the same question for Class
-2? Write a script named act.R or act.Rmd to address these questions. Underneath your code, write a 
-conclusion as to which class (or, neither class) you would recommend. Justify your answers.
+You are trying to decide between two ACT prep classes. Class 1 begins with a general overview 
+followed by an extensive number of practice exams. Class 2 covers each topic in depth with practice 
+questions arranged by topic. Sample data for each class is available in the file act.txt in your 
+repository. Based on a permutation test with 10,000 replications, does Class 1 increase ACT scores on
+average? Answer the same question for Class 2. Underneath your code, write a conclusion as to which 
+class (or, neither class) you would recommend. Justify your answers.
+
+***
+
+For our permutation test, our null hypothesis will be that there is no difference in means for
+our pre and post class scores.
 
 Read in data.
 ```{r}
 act_data <- read.table('act.txt', header = TRUE)
 ```
 
-Calculate difference in means for each class.
+Calculate the average pre and post test scores for each class as well as the difference in average
+pre and post scores for each class.
 ```{r}
 (class_stats <- act_data %>%
    group_by(class) %>%
@@ -36,7 +41,7 @@ Calculate difference in means for each class.
              difference = avg_post - avg_pre))
 ```
 
-Store true differences.
+Store true differences in average pre and post test scores for each class.
 ```{r}
 c1_diff <- class_stats %>%
   filter(class == 'class1') %>%
@@ -49,93 +54,84 @@ c2_diff <- class_stats %>%
   pull()
 ```
 
-Gather the 'pre' and 'post' columns in the data to make it tidy.
+# Function
+
+Create a function, 'permuter' which filters the 'act_data' for the specified class. The 'nreps' 
+arguement has a default value of 10,000, which is how many times we want to permute the data and
+calculate our statistic of interest. After filtering for the specified class, the function generates
+random draws between 0 and 1 from a uniform distribution. Whether those draws are above or below
+0.5 determines how the values of 'pre' and 'post' test scores are permuted. Then, the function
+calculates the average difference in test scores 'pre' and 'post' and returns that value.
 ```{r}
-act_data <- act_data %>%
-  gather(key = score_period, value = score, -class)
+permuter <- function(which_class, nreps = 10000) {
+  
+  new_data <- act_data %>%
+    filter(class == which_class)
+  
+  mean_diffs <- map_df(1:nreps, function(x) {
+    new_data %>%
+      mutate(x = runif(n()),
+             perm_pre = ifelse(x > 0.5, pre, post),
+             perm_post = ifelse(x < 0.5, pre, post)) %>%
+      summarize(mean_diff = mean(perm_post - perm_pre))
+      
+  })
+  
+  return(mean_diffs)
+  
+}
 ```
 
-Our null hypothesis will be that there is no difference in mean score before and after attending
-each class. We can impose the null hypothesis by randomizing the post scores for each class and 
-calculating the difference in means between pre and post scores. This will give us the distribution
-of differences in means under the null hypothesis, which we can then compare our actual difference
-in means to.
+# Class 1
 
-## Class 1
-
-Create 'c1_data' by filtering for the obervations from the first class, and generating 10000 
-replications of the original data. Then, create a new variable 'perm_score' by randomizing the 
-scores. Group by each replication and the pre and post periods, then calculate the average pre and 
-post class scores for each replication. Then calculate the difference between those average scores.
+Calculate 10,000 estimates of the difference in mean score under the null hypothesis for class one.
 ```{r}
-c1_data <- act_data %>%
-  filter(class == 'class1') %>%
-  rep_sample_n(size = nrow(.),
-               reps = 10000) %>%
-  mutate(perm_score = sample(score)) %>%
-  group_by(replicate, score_period) %>%
-  summarize(avg_score = mean(perm_score)) %>%
-  summarize(score_diff = diff(avg_score))
+c1_perm_diffs <- permuter('class1')
 ```
 
-Graph the distribution of the difference in mean scores before and after the first class. Include
-a verticle line showing the actual observed difference in mean score.
+Graph the estimates and include a verticle line to show the difference for our class 1 sample.
 ```{r}
-c1_data %>%
-  ggplot(aes(x = score_diff)) +
+c1_perm_diffs %>%
+  ggplot(aes(x = mean_diff)) +
   geom_density() +
-  geom_vline(xintercept = c1_diff)
+  geom_vline(xintercept = c1_diff, color = 'red') +
+  labs(title = 'Null Distribution of Mean Score Diff. - Class 1',
+       x = 'Mean Score Difference',
+       y = 'Density')
 ```
 
-Calculate the p-value by subtracting from 1 (since we're looking at the right tail of the 
-distribution) the proportion of mean differences under the null that are less than our observed
-difference.
+Calculate the p-value of our estimate for class one.
 ```{r}
-c1_data %>%
-  summarize(p_value = 1 - sum(score_diff < c1_diff) / n())
+c1_perm_diffs %>%
+  summarize(P_Value = mean(mean_diff > c1_diff))
 ```
 
-We do not reject the null hypothesis that there is no difference in mean score before and after
-taking the first class.
+# Class 2
 
-## Class 2
-
-Create 'c2_data' by filtering for the obervations from the first class, and generating 10000 
-replications of the original data. Then, create a new variable 'perm_score' by randomizing the 
-scores. Group by each replication and the pre and post periods, then calculate the average pre and 
-post class scores for each replication. Then calculate the difference between those average scores.
+Calculate 10,000 estimates of the difference in mean score under the null hypothesis for class two.
 ```{r}
-c2_data <- act_data %>%
-  filter(class == 'class2') %>%
-  rep_sample_n(size = nrow(.),
-               reps = 10000) %>%
-  mutate(perm_score = sample(score)) %>%
-  group_by(replicate, score_period) %>%
-  summarize(avg_score = mean(perm_score)) %>%
-  summarize(score_diff = diff(avg_score))
+c2_perm_diffs <- permuter('class2')
 ```
 
-Graph the distribution of the difference in mean scores before and after the first class. Include
-a verticle line showing the actual observed difference in mean score.
+Graph the estimates and include a verticle line to show the difference for our class 2 sample.
 ```{r}
-c2_data %>%
-  ggplot(aes(x = score_diff)) +
+c2_perm_diffs %>%
+  ggplot(aes(x = mean_diff)) +
   geom_density() +
-  geom_vline(xintercept = c2_diff)
+  geom_vline(xintercept = c2_diff, color = 'red') +
+  labs(title = 'Null Distribution of Mean Score Diff. - Class 2',
+       x = 'Mean Score Difference',
+       y = 'Density')
 ```
 
-Calculate the p-value by subtracting from 1 (since we're looking at the right tail of the 
-distribution) the proportion of mean differences under the null that are less than our observed
-difference.
+Calculate the p-value of our estimate for class two.
 ```{r}
-c2_data %>%
-  summarize(p_value = 1 - sum(score_diff < c2_diff) / n())
+c2_perm_diffs %>%
+  summarize(P_Value = mean(mean_diff > c2_diff))
 ```
 
-We do not reject the null hypothesis that there is no difference in mean score before and after
-taking the second class.
-
-## Conclusion
-
-Overall, I wouldn't recommend attending either class. The increase in mean score for both classes
-is not statistically significant, so I would recommend spending your money on other study methods.
+Based on this analysis, I would recommend that someone take class two. The increase in average score
+that it produces is significant at the 5% level. However, our point estimate of the increase in 
+average score for class 1 is larger than the point estimate for class 2. We only have 20 data points
+from class 1, so if we were to get more, we might be able to show that the increase in score that
+class 1 produces is statistically greater than zero. Until that point, I would recommend class 2.
