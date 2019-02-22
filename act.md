@@ -138,7 +138,10 @@ c1_perm_diffs %>%
 ```
 
     ##   P_Value
-    ## 1  0.0919
+    ## 1  0.0967
+
+Based on this 10,000 replication permutation test, class one does not
+increase scores on average.
 
 # Class 2
 
@@ -172,7 +175,12 @@ c2_perm_diffs %>%
 ```
 
     ##   P_Value
-    ## 1   0.031
+    ## 1  0.0318
+
+Based on this 10,000 replication permutation test, class two does
+increase scores on average.
+
+-----
 
 Based on this analysis, I would recommend that someone take class two.
 The increase in average score that it produces is significant at the 5%
