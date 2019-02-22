@@ -106,6 +106,8 @@ c1_perm_diffs %>%
   summarize(P_Value = mean(mean_diff > c1_diff))
 ```
 
+Based on this 10,000 replication permutation test, class one does not increase scores on average.
+
 # Class 2
 
 Calculate 10,000 estimates of the difference in mean score under the null hypothesis for class two.
@@ -129,6 +131,10 @@ Calculate the p-value of our estimate for class two.
 c2_perm_diffs %>%
   summarize(P_Value = mean(mean_diff > c2_diff))
 ```
+
+Based on this 10,000 replication permutation test, class two does increase scores on average.
+
+***
 
 Based on this analysis, I would recommend that someone take class two. The increase in average score
 that it produces is significant at the 5% level. However, our point estimate of the increase in 
